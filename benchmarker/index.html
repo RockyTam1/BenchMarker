@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Benchmarker — Cognitive Skill Tests</title>
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav">
+        <a class="brand" href="index.html">Benchmarker</a>
+        <ul class="nav-links">
+          <li><a href="reaction.html">Reaction Time</a></li>
+          <li><a href="number-memory.html">Number Memory</a></li>
+          <li><a href="aim-trainer.html">Aim Trainer</a></li>
+          <li><a href="skill-check.html">Skill Check</a></li>
+          <li><a href="signup.html">Sign Up / Stats</a></li>
+        </ul>
+        <div class="user-badge" id="userBadge"></div>
+      </nav>
+    </header>
+
+    <main class="container">
+      <section class="hero">
+        <h1>Benchmarker</h1>
+        <p class="subtitle">Test your reaction, memory, aim, and timing. Instant play, instant feedback.</p>
+        <div class="cta-row">
+          <a class="btn primary" href="reaction.html">Start with Reaction Time</a>
+          <a class="btn" href="signup.html">View Stats</a>
+        </div>
+      </section>
+
+      <section class="cards-grid">
+        <a class="card" href="reaction.html">
+          <h3>Reaction Time</h3>
+          <p>Click when the screen turns green. Measure your response speed in milliseconds.</p>
+        </a>
+        <a class="card" href="number-memory.html">
+          <h3>Number Memory</h3>
+          <p>Memorize an ever-growing number. How many digits can you recall?</p>
+        </a>
+        <a class="card" href="aim-trainer.html">
+          <h3>Aim Trainer</h3>
+          <p>Hit targets as fast as possible. Track your average time per target.</p>
+        </a>
+        <a class="card" href="skill-check.html">
+          <h3>Skill Check</h3>
+          <p>Tap space when the pointer enters the success zone. It speeds up each success.</p>
+        </a>
+      </section>
+
+      <section class="panel">
+        <h2>Your Best Scores</h2>
+        <div id="bestScores" class="best-scores"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>© <span id="year"></span> Benchmarker</div>
+    </footer>
+
+    <script src="assets/js/storage.js"></script>
+    <script src="assets/js/ui.js"></script>
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      function renderBestScores() {
+        const user = window.BMStorage.getCurrentUser();
+        const username = user ? user.username : 'guest';
+        const stats = window.BMStorage.getUserStats(username);
+        const el = document.getElementById('bestScores');
+        const rows = [];
+        rows.push(`<div class="best-row"><span>Reaction Time</span><span>${stats.reaction.bestMs != null ? stats.reaction.bestMs + ' ms' : '—'}</span></div>`);
+        rows.push(`<div class="best-row"><span>Number Memory</span><span>${stats.numberMemory.bestLevel != null ? 'Level ' + stats.numberMemory.bestLevel : '—'}</span></div>`);
+        rows.push(`<div class="best-row"><span>Aim Trainer</span><span>${stats.aim.bestAvgMs != null ? stats.aim.bestAvgMs + ' ms avg' : '—'}</span></div>`);
+        rows.push(`<div class="best-row"><span>Skill Check</span><span>${stats.skillCheck.bestScore != null ? stats.skillCheck.bestScore + ' streak' : '—'}</span></div>`);
+        el.innerHTML = rows.join('');
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        window.BMUI.renderUserBadge();
+        renderBestScores();
+      });
+    </script>
+  </body>
+  </html>
+

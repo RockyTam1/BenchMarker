@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign Up / Stats — Benchmarker</title>
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav">
+        <a class="brand" href="index.html">Benchmarker</a>
+        <ul class="nav-links">
+          <li><a href="reaction.html">Reaction Time</a></li>
+          <li><a href="number-memory.html">Number Memory</a></li>
+          <li><a href="aim-trainer.html">Aim Trainer</a></li>
+          <li><a href="skill-check.html">Skill Check</a></li>
+          <li><a class="active" href="signup.html">Sign Up / Stats</a></li>
+        </ul>
+        <div class="user-badge" id="userBadge"></div>
+      </nav>
+    </header>
+
+    <main class="container narrow">
+      <h1>Sign Up / Stats</h1>
+      <p class="subtitle">Create a local profile to track your best scores on this device. No email required.</p>
+
+      <div class="panel">
+        <form id="signupForm" class="form">
+          <div class="form-row">
+            <label for="username">Username</label>
+            <input id="username" class="input" type="text" placeholder="e.g. player1" required />
+          </div>
+          <div class="form-row">
+            <label for="pin">PIN (4 digits)</label>
+            <input id="pin" class="input" type="password" pattern="\\d{4}" placeholder="1234" required />
+          </div>
+          <div class="controls-row">
+            <button class="btn primary" type="submit">Sign Up / Login</button>
+            <button id="logoutBtn" class="btn" type="button">Logout</button>
+          </div>
+        </form>
+      </div>
+
+      <section class="panel">
+        <h2>Your Stats</h2>
+        <div id="stats"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Manage Profiles</h2>
+        <div class="profiles" id="profiles"></div>
+      </section>
+
+      <div class="controls-row">
+        <a class="btn" href="index.html">Home</a>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div>© <span id="year"></span> Benchmarker</div>
+    </footer>
+
+    <script src="assets/js/storage.js"></script>
+    <script src="assets/js/ui.js"></script>
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      const form = document.getElementById('signupForm');
+      const usernameEl = document.getElementById('username');
+      const pinEl = document.getElementById('pin');
+      const statsEl = document.getElementById('stats');
+      const profilesEl = document.getElementById('profiles');
+      const logoutBtn = document.getElementById('logoutBtn');
+
+      function renderStats() {
+        const user = window.BMStorage.getCurrentUser();
+        const username = user ? user.username : 'guest';
+        const s = window.BMStorage.getUserStats(username);
+        statsEl.innerHTML = `
+          <div class="grid two">
+            <div>
+              <h3>Reaction Time</h3>
+              <div>Best: ${s.reaction.bestMs != null ? s.reaction.bestMs + ' ms' : '—'}</div>
+              <div>Attempts: ${s.reaction.attempts}</div>
+              <div>Recent averages: ${s.reaction.recentAverages.join(', ') || '—'}</div>
+            </div>
+            <div>
+              <h3>Number Memory</h3>
+              <div>Best Level: ${s.numberMemory.bestLevel != null ? s.numberMemory.bestLevel : '—'}</div>
+              <div>Attempts: ${s.numberMemory.attempts}</div>
+            </div>
+            <div>
+              <h3>Aim Trainer</h3>
+              <div>Best Avg: ${s.aim.bestAvgMs != null ? s.aim.bestAvgMs + ' ms' : '—'}</div>
+              <div>Attempts: ${s.aim.attempts}</div>
+              <div>Recent avgs: ${s.aim.recentAverages.join(', ') || '—'}</div>
+            </div>
+            <div>
+              <h3>Skill Check</h3>
+              <div>Best Score: ${s.skillCheck.bestScore != null ? s.skillCheck.bestScore : '—'}</div>
+              <div>Attempts: ${s.skillCheck.attempts}</div>
+            </div>
+          </div>`;
+      }
+
+      function renderProfiles() {
+        const all = window.BMStorage.listUsers();
+        const current = window.BMStorage.getCurrentUser();
+        profilesEl.innerHTML = all.map(u => `
+          <div class="profile-row ${current && current.username===u.username ? 'current' : ''}">
+            <div class="profile-name">${u.username}</div>
+            <div class="profile-actions">
+              <button class="btn" data-act="login" data-username="${u.username}">Login</button>
+              <button class="btn danger" data-act="delete" data-username="${u.username}">Delete</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      profilesEl.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        const act = t.getAttribute('data-act');
+        const username = t.getAttribute('data-username');
+        if (!act || !username) return;
+        if (act === 'login') {
+          const pin = prompt('Enter PIN for '+username+':');
+          if (pin == null) return;
+          const ok = window.BMStorage.login(username, pin);
+          if (!ok) return alert('Invalid PIN');
+          window.BMUI.renderUserBadge();
+          renderStats();
+          renderProfiles();
+        } else if (act === 'delete') {
+          if (!confirm('Delete user '+username+'? This cannot be undone.')) return;
+          window.BMStorage.deleteUser(username);
+          window.BMUI.renderUserBadge();
+          renderStats();
+          renderProfiles();
+        }
+      });
+
+      logoutBtn.addEventListener('click', () => {
+        window.BMStorage.logout();
+        window.BMUI.renderUserBadge();
+        renderStats();
+        renderProfiles();
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = usernameEl.value.trim();
+        const pin = pinEl.value.trim();
+        if (!/^\w[\w.-]{1,20}$/.test(username)) {
+          alert('Use 2-21 characters: letters, numbers, underscore, dot, or dash.');
+          return;
+        }
+        if (!/^\d{4}$/.test(pin)) {
+          alert('PIN must be 4 digits.');
+          return;
+        }
+        try {
+          await window.BMStorage.signupOrLogin(username, pin);
+        } catch (err) {
+          alert('Invalid PIN for existing user.');
+          return;
+        }
+        usernameEl.value = '';
+        pinEl.value = '';
+        window.BMUI.renderUserBadge();
+        renderStats();
+        renderProfiles();
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        window.BMUI.renderUserBadge();
+        renderStats();
+        renderProfiles();
+      });
+    </script>
+  </body>
+  </html>
+

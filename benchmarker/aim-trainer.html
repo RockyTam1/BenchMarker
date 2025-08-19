@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aim Trainer — Benchmarker</title>
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav">
+        <a class="brand" href="index.html">Benchmarker</a>
+        <ul class="nav-links">
+          <li><a href="reaction.html">Reaction Time</a></li>
+          <li><a href="number-memory.html">Number Memory</a></li>
+          <li><a class="active" href="aim-trainer.html">Aim Trainer</a></li>
+          <li><a href="skill-check.html">Skill Check</a></li>
+          <li><a href="signup.html">Sign Up / Stats</a></li>
+        </ul>
+        <div class="user-badge" id="userBadge"></div>
+      </nav>
+    </header>
+
+    <main class="container narrow">
+      <h1>Aim Trainer</h1>
+      <p class="subtitle">Click 15 targets as quickly as you can.</p>
+
+      <div class="aim-area" id="aimArea">
+        <button id="target" class="target hidden"></button>
+      </div>
+
+      <div class="metrics">
+        <div><strong>Hit:</strong> <span id="hits">0</span>/15</div>
+        <div><strong>Avg:</strong> <span id="avg">—</span></div>
+        <div><strong>Best Avg:</strong> <span id="best">—</span></div>
+      </div>
+
+      <div class="controls-row">
+        <button id="startBtn" class="btn primary">Start</button>
+        <button id="resetBtn" class="btn">Reset</button>
+        <a class="btn" href="index.html">Home</a>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div>© <span id="year"></span> Benchmarker</div>
+    </footer>
+
+    <script src="assets/js/storage.js"></script>
+    <script src="assets/js/ui.js"></script>
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      const area = document.getElementById('aimArea');
+      const target = document.getElementById('target');
+      const startBtn = document.getElementById('startBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const hitsEl = document.getElementById('hits');
+      const avgEl = document.getElementById('avg');
+      const bestEl = document.getElementById('best');
+
+      let hits = 0;
+      let times = [];
+      let lastSpawn = 0;
+
+      function updateBest() {
+        const user = window.BMStorage.getCurrentUser();
+        const username = user ? user.username : 'guest';
+        const stats = window.BMStorage.getUserStats(username);
+        bestEl.textContent = stats.aim.bestAvgMs != null ? stats.aim.bestAvgMs + ' ms' : '—';
+      }
+
+      function spawnTarget() {
+        const rect = area.getBoundingClientRect();
+        const size = 44;
+        const x = Math.random() * (rect.width - size);
+        const y = Math.random() * (rect.height - size);
+        target.style.left = x + 'px';
+        target.style.top = y + 'px';
+        target.classList.remove('hidden');
+        lastSpawn = performance.now();
+      }
+
+      target.addEventListener('click', () => {
+        const now = performance.now();
+        times.push(now - lastSpawn);
+        hits += 1;
+        hitsEl.textContent = String(hits);
+        target.classList.add('hidden');
+        if (hits >= 15) {
+          const avg = Math.round(times.reduce((a,b)=>a+b,0)/times.length);
+          avgEl.textContent = avg + ' ms';
+          const user = window.BMStorage.getCurrentUser();
+          const username = user ? user.username : 'guest';
+          window.BMStorage.recordAim(username, avg);
+          updateBest();
+        } else {
+          setTimeout(spawnTarget, 300);
+          const avg = Math.round(times.reduce((a,b)=>a+b,0)/times.length);
+          avgEl.textContent = avg + ' ms';
+        }
+      });
+
+      startBtn.addEventListener('click', () => {
+        hits = 0;
+        times = [];
+        hitsEl.textContent = '0';
+        avgEl.textContent = '—';
+        spawnTarget();
+      });
+
+      resetBtn.addEventListener('click', () => {
+        hits = 0;
+        times = [];
+        hitsEl.textContent = '0';
+        avgEl.textContent = '—';
+        target.classList.add('hidden');
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        window.BMUI.renderUserBadge();
+        updateBest();
+      });
+    </script>
+  </body>
+  </html>
+

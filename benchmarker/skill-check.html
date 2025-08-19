@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skill Check — Benchmarker</title>
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav">
+        <a class="brand" href="index.html">Benchmarker</a>
+        <ul class="nav-links">
+          <li><a href="reaction.html">Reaction Time</a></li>
+          <li><a href="number-memory.html">Number Memory</a></li>
+          <li><a href="aim-trainer.html">Aim Trainer</a></li>
+          <li><a class="active" href="skill-check.html">Skill Check</a></li>
+          <li><a href="signup.html">Sign Up / Stats</a></li>
+        </ul>
+        <div class="user-badge" id="userBadge"></div>
+      </nav>
+    </header>
+
+    <main class="container narrow">
+      <h1>Skill Check</h1>
+      <p class="subtitle">Press space when the pointer is inside the zone. Each success reverses direction and speeds up.</p>
+
+      <div class="skillcheck-panel">
+        <canvas id="scCanvas" width="380" height="380"></canvas>
+      </div>
+
+      <div class="metrics">
+        <div><strong>Score:</strong> <span id="scScore">0</span></div>
+        <div><strong>Best:</strong> <span id="scBest">—</span></div>
+        <div><strong>Tip:</strong> Space to hit, R to reset</div>
+      </div>
+
+      <div class="controls-row">
+        <button id="scStart" class="btn primary">Start</button>
+        <button id="scReset" class="btn">Reset</button>
+        <a class="btn" href="index.html">Home</a>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div>© <span id="year"></span> Benchmarker</div>
+    </footer>
+
+    <script src="assets/js/storage.js"></script>
+    <script src="assets/js/ui.js"></script>
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      const canvas = document.getElementById('scCanvas');
+      const ctx = canvas.getContext('2d');
+      const scoreEl = document.getElementById('scScore');
+      const bestEl = document.getElementById('scBest');
+      const startBtn = document.getElementById('scStart');
+      const resetBtn = document.getElementById('scReset');
+
+      let running = false;
+      let angle = -Math.PI/2; // start at top
+      let dir = 1; // 1 clockwise, -1 counter
+      let speed = 1.2; // radians per second
+      let score = 0;
+      let lastTs = 0;
+      let zoneStart = Math.random()*Math.PI*2;
+      let zoneSize = Math.PI/6; // 30 deg
+      let greatSize = zoneSize/3; // inner great zone
+
+      function updateBest() {
+        const user = window.BMStorage.getCurrentUser();
+        const username = user ? user.username : 'guest';
+        const stats = window.BMStorage.getUserStats(username);
+        bestEl.textContent = stats.skillCheck.bestScore != null ? stats.skillCheck.bestScore : '—';
+      }
+
+      function resetGame() {
+        running = false;
+        angle = -Math.PI/2;
+        dir = Math.random() < 0.5 ? 1 : -1;
+        speed = 1.2;
+        score = 0;
+        scoreEl.textContent = '0';
+        zoneStart = Math.random()*Math.PI*2;
+        zoneSize = Math.PI/6;
+        greatSize = zoneSize/3;
+        draw();
+      }
+
+      function normalize(a) {
+        const twoPi = Math.PI*2;
+        return ((a % twoPi) + twoPi) % twoPi;
+      }
+
+      function inArc(a, start, size) {
+        const twoPi = Math.PI*2;
+        a = normalize(a);
+        start = normalize(start);
+        let end = normalize(start + size);
+        if (size >= twoPi) return true;
+        if (start <= end) return a >= start && a <= end;
+        return a >= start || a <= end;
+      }
+
+      function draw() {
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0,0,w,h);
+        const cx = w/2, cy = h/2, r = Math.min(w,h)/2 - 20;
+
+        // ring
+        ctx.lineWidth = 14;
+        ctx.strokeStyle = '#2a2f3a';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI*2);
+        ctx.stroke();
+
+        // success zone
+        ctx.lineWidth = 14;
+        ctx.strokeStyle = '#3ddc84';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, zoneStart, zoneStart + zoneSize);
+        ctx.stroke();
+
+        // great inner zone
+        ctx.lineWidth = 14;
+        ctx.strokeStyle = '#9bdbff';
+        ctx.beginPath();
+        const greatStart = zoneStart + (zoneSize - greatSize)/2;
+        ctx.arc(cx, cy, r, greatStart, greatStart + greatSize);
+        ctx.stroke();
+
+        // pointer
+        const px = cx + r * Math.cos(angle);
+        const py = cy + r * Math.sin(angle);
+        ctx.fillStyle = '#ffd166';
+        ctx.beginPath();
+        ctx.arc(px, py, 10, 0, Math.PI*2);
+        ctx.fill();
+
+        // center text
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '600 20px Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Space to hit', cx, cy + 8);
+      }
+
+      function loop(ts) {
+        if (!running) return;
+        if (!lastTs) lastTs = ts;
+        const dt = (ts - lastTs) / 1000;
+        lastTs = ts;
+        angle += dir * speed * dt;
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      function onHit() {
+        const a = normalize(angle);
+        const isHit = inArc(a, zoneStart, zoneSize);
+        const twoPi = Math.PI*2;
+        if (isHit) {
+          const isGreat = inArc(a, zoneStart + (zoneSize - greatSize)/2, greatSize);
+          // success
+          score += 1;
+          scoreEl.textContent = String(score) + (isGreat ? ' Great!' : '');
+          dir *= -1;
+          speed = Math.min(6.5, speed * 1.08);
+          // randomize zone new position, keep size, sometimes shrink a tiny bit
+          zoneStart = Math.random()*twoPi;
+          if (Math.random() < 0.25) {
+            zoneSize = Math.max(Math.PI/16, zoneSize * 0.97);
+            greatSize = Math.max(zoneSize/6, greatSize * 0.95);
+          }
+        } else {
+          // fail
+          running = false;
+          const user = window.BMStorage.getCurrentUser();
+          const username = user ? user.username : 'guest';
+          window.BMStorage.recordSkillCheck(username, score);
+          updateBest();
+          scoreEl.textContent = `Failed at ${score}. Press R to reset or Start.`;
+        }
+      }
+
+      startBtn.addEventListener('click', () => {
+        if (running) return;
+        lastTs = 0;
+        running = true;
+        requestAnimationFrame(loop);
+      });
+
+      resetBtn.addEventListener('click', resetGame);
+
+      document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          if (!running) return;
+          onHit();
+        } else if (e.key.toLowerCase() === 'r') {
+          resetGame();
+        }
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        window.BMUI.renderUserBadge();
+        updateBest();
+        resetGame();
+      });
+    </script>
+  </body>
+  </html>
+
