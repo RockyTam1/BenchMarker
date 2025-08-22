@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reaction Time — Benchmarker</title>
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav">
+        <a class="brand" href="index.html">Benchmarker</a>
+        <ul class="nav-links">
+          <li><a class="active" href="reaction.html">Reaction Time</a></li>
+          <li><a href="number-memory.html">Number Memory</a></li>
+          <li><a href="aim-trainer.html">Aim Trainer</a></li>
+          <li><a href="skill-check.html">Skill Check</a></li>
+          <li><a href="signup.html">Sign Up / Stats</a></li>
+        </ul>
+        <div class="user-badge" id="userBadge"></div>
+      </nav>
+    </header>
+
+    <main class="container narrow">
+      <h1>Reaction Time</h1>
+      <p class="subtitle">Click as soon as the screen turns green. Five rounds, then see your average.</p>
+
+      <div id="reactionPanel" class="reaction-panel idle">
+        <div id="reactionText" class="reaction-text">Click to start</div>
+      </div>
+
+      <div class="metrics">
+        <div><strong>Round:</strong> <span id="round">0</span>/5</div>
+        <div><strong>Last:</strong> <span id="last">—</span></div>
+        <div><strong>Average:</strong> <span id="avg">—</span></div>
+        <div><strong>Best:</strong> <span id="best">—</span></div>
+      </div>
+
+      <div class="controls-row">
+        <button id="resetBtn" class="btn">Reset</button>
+        <a class="btn" href="index.html">Home</a>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div>© <span id="year"></span> Benchmarker</div>
+    </footer>
+
+    <script src="assets/js/storage.js"></script>
+    <script src="assets/js/ui.js"></script>
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      const panel = document.getElementById('reactionPanel');
+      const text = document.getElementById('reactionText');
+      const roundEl = document.getElementById('round');
+      const lastEl = document.getElementById('last');
+      const avgEl = document.getElementById('avg');
+      const bestEl = document.getElementById('best');
+      const resetBtn = document.getElementById('resetBtn');
+
+      let state = 'idle';
+      let timeoutId = null;
+      let startTs = 0;
+      let results = [];
+      let round = 0;
+
+      function setState(newState) {
+        panel.classList.remove('idle','wait','go','too-soon');
+        panel.classList.add(newState);
+        state = newState;
+      }
+
+      function scheduleGo() {
+        const delay = 1000 + Math.random() * 2000;
+        timeoutId = setTimeout(() => {
+          setState('go');
+          text.textContent = 'Click!';
+          startTs = performance.now();
+        }, delay);
+      }
+
+      function updateMetrics() {
+        roundEl.textContent = String(round);
+        const last = results.length ? results[results.length - 1] : null;
+        lastEl.textContent = last != null ? Math.round(last) + ' ms' : '—';
+        const avg = results.length ? results.reduce((a,b)=>a+b,0)/results.length : null;
+        avgEl.textContent = avg != null ? Math.round(avg) + ' ms' : '—';
+
+        const user = window.BMStorage.getCurrentUser();
+        const username = user ? user.username : 'guest';
+        const stats = window.BMStorage.getUserStats(username);
+        const best = stats.reaction.bestMs;
+        bestEl.textContent = best != null ? best + ' ms' : '—';
+      }
+
+      function finishIfNeeded() {
+        if (round >= 5) {
+          const avg = Math.round(results.reduce((a,b)=>a+b,0)/results.length);
+          const user = window.BMStorage.getCurrentUser();
+          const username = user ? user.username : 'guest';
+          window.BMStorage.recordReaction(username, results, avg);
+          updateMetrics();
+          text.textContent = `Done! Avg: ${avg} ms. Click to retry.`;
+          setState('idle');
+          round = 0;
+          results = [];
+        }
+      }
+
+      panel.addEventListener('click', () => {
+        if (state === 'idle') {
+          results = [];
+          round = 0;
+          updateMetrics();
+          setState('wait');
+          text.textContent = 'Wait for green...';
+          clearTimeout(timeoutId);
+          scheduleGo();
+        } else if (state === 'wait') {
+          // too soon
+          clearTimeout(timeoutId);
+          setState('too-soon');
+          text.textContent = 'Too soon! Click to try again.';
+        } else if (state === 'go') {
+          const delta = performance.now() - startTs;
+          results.push(delta);
+          round += 1;
+          updateMetrics();
+          if (round < 5) {
+            setState('wait');
+            text.textContent = 'Wait for green...';
+            clearTimeout(timeoutId);
+            scheduleGo();
+          } else {
+            setState('go');
+            finishIfNeeded();
+          }
+        } else if (state === 'too-soon') {
+          setState('wait');
+          text.textContent = 'Wait for green...';
+          clearTimeout(timeoutId);
+          scheduleGo();
+        }
+      });
+
+      resetBtn.addEventListener('click', () => {
+        clearTimeout(timeoutId);
+        results = [];
+        round = 0;
+        updateMetrics();
+        setState('idle');
+        text.textContent = 'Click to start';
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        window.BMUI.renderUserBadge();
+        updateMetrics();
+      });
+    </script>
+  </body>
+  </html>
+

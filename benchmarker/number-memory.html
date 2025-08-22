@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Number Memory — Benchmarker</title>
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav">
+        <a class="brand" href="index.html">Benchmarker</a>
+        <ul class="nav-links">
+          <li><a href="reaction.html">Reaction Time</a></li>
+          <li><a class="active" href="number-memory.html">Number Memory</a></li>
+          <li><a href="aim-trainer.html">Aim Trainer</a></li>
+          <li><a href="skill-check.html">Skill Check</a></li>
+          <li><a href="signup.html">Sign Up / Stats</a></li>
+        </ul>
+        <div class="user-badge" id="userBadge"></div>
+      </nav>
+    </header>
+
+    <main class="container narrow">
+      <h1>Number Memory</h1>
+      <p class="subtitle">Memorize the number, then type it. Each level adds a digit.</p>
+
+      <div class="panel nm-panel">
+        <div id="nmNumber" class="nm-number">Click start</div>
+        <div class="nm-input-row">
+          <input id="nmInput" class="input" type="text" placeholder="Type the number" disabled />
+          <button id="nmSubmit" class="btn" disabled>Submit</button>
+        </div>
+        <div class="controls-row">
+          <button id="nmStart" class="btn primary">Start</button>
+          <button id="nmReset" class="btn">Reset</button>
+          <a class="btn" href="index.html">Home</a>
+        </div>
+      </div>
+
+      <div class="metrics">
+        <div><strong>Level:</strong> <span id="nmLevel">0</span></div>
+        <div><strong>Best:</strong> <span id="nmBest">—</span></div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div>© <span id="year"></span> Benchmarker</div>
+    </footer>
+
+    <script src="assets/js/storage.js"></script>
+    <script src="assets/js/ui.js"></script>
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      const nmNumber = document.getElementById('nmNumber');
+      const nmInput = document.getElementById('nmInput');
+      const nmSubmit = document.getElementById('nmSubmit');
+      const nmStart = document.getElementById('nmStart');
+      const nmReset = document.getElementById('nmReset');
+      const nmLevelEl = document.getElementById('nmLevel');
+      const nmBestEl = document.getElementById('nmBest');
+
+      let level = 0;
+      let secret = '';
+      let showing = false;
+
+      function updateBest() {
+        const user = window.BMStorage.getCurrentUser();
+        const username = user ? user.username : 'guest';
+        const stats = window.BMStorage.getUserStats(username);
+        nmBestEl.textContent = stats.numberMemory.bestLevel != null ? 'Level ' + stats.numberMemory.bestLevel : '—';
+      }
+
+      function randomDigit() { return Math.floor(Math.random()*10); }
+
+      function nextLevel() {
+        level += 1;
+        nmLevelEl.textContent = String(level);
+        secret = '';
+        for (let i=0;i<level;i++) secret += randomDigit();
+        showing = true;
+        nmInput.disabled = true;
+        nmSubmit.disabled = true;
+        nmNumber.textContent = secret;
+        setTimeout(() => {
+          nmNumber.textContent = 'Enter the number';
+          nmInput.disabled = false;
+          nmSubmit.disabled = false;
+          nmInput.value = '';
+          nmInput.focus();
+          showing = false;
+        }, Math.min(4000, 1000 + level*300));
+      }
+
+      function endRun() {
+        const user = window.BMStorage.getCurrentUser();
+        const username = user ? user.username : 'guest';
+        window.BMStorage.recordNumberMemory(username, level-1);
+        updateBest();
+        nmNumber.textContent = `Failed at level ${level}. Click start to try again.`;
+        level = 0;
+        nmLevelEl.textContent = '0';
+        nmInput.disabled = true;
+        nmSubmit.disabled = true;
+      }
+
+      nmStart.addEventListener('click', () => {
+        if (showing) return;
+        level = 0;
+        nextLevel();
+      });
+
+      nmReset.addEventListener('click', () => {
+        level = 0;
+        nmLevelEl.textContent = '0';
+        nmNumber.textContent = 'Click start';
+        nmInput.value = '';
+        nmInput.disabled = true;
+        nmSubmit.disabled = true;
+      });
+
+      nmSubmit.addEventListener('click', () => {
+        if (showing) return;
+        if (nmInput.value.trim() === secret) {
+          nextLevel();
+        } else {
+          endRun();
+        }
+      });
+
+      nmInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') nmSubmit.click();
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        window.BMUI.renderUserBadge();
+        updateBest();
+      });
+    </script>
+  </body>
+  </html>
+
